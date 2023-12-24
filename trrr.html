@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Search Results</title>
+    <style>
+        .header {
+            background-color: #0d0e0e;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .webname {
+            color: red;
+        }
+
+        .searchbutton {
+            background-color: #2980b9;
+            color: #fff;
+            border: none;
+            padding: 5px 15px;
+            cursor: pointer;
+            height: 30px;
+        }
+
+        .searchplaceholder {
+            border-radius: 2px;
+            width: 350px;
+            height: 30px;
+        }
+
+        .searchresult {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .video-result {
+            box-sizing: border-box;
+            width: calc(33.33% - 20px); /* Adjust the width and margin as needed */
+            margin: 10px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .video-result iframe {
+            width: 100%;
+            height: 100%;
+            margin-bottom: 10px;
+        }
+
+        .video-result:hover {
+            transform: scale(1.1);
+        }
+
+        .video-title {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <center> <h1 class="webname">Half tube</h1> </center>
+
+        <!-- Search Input -->
+        <center> <input class="searchplaceholder" type="text" id="searchInput" placeholder="search any music">
+        <button class="searchbutton" onclick="search()">Search</button></center>
+    </div>
+
+    <!-- Display YouTube Search Results -->
+    <div class="searchresult" id="searchResults"></div>
+
+    <!-- Include the YouTube Player API script -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        const API_KEY = 'AIzaSyC8K8fRywUzjqQFeYcZ11S81fpd6uDgjqs';
+        let nextPageToken = '';
+        let currentPlayingVideo;
+
+        function onYouTubeIframeAPIReady() {
+            // You can use the YouTube Player API here if needed
+        }
+
+        function search() {
+            var query = document.getElementById('searchInput').value;
+            nextPageToken = ''; // Reset the page token for a new search
+            performYouTubeSearch(query);
+        }
+
+        function performYouTubeSearch(query) {
+            // Set the maxResults parameter to control the number of results
+            var apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&key=${API_KEY}&maxResults=99&pageToken=${nextPageToken}`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    nextPageToken = data.nextPageToken; // Update the nextPageToken for pagination
+                    var videoResults = data.items.map(item => ({
+                        title: item.snippet.title,
+                        videoId: item.id.videoId
+                    }));
+
+                    displayResults(videoResults);
+                })
+                .catch(error => {
+                    console.error('Error fetching YouTube data:', error);
+                });
+        }
+
+        function displayResults(results) {
+            var resultsContainer = document.getElementById('searchResults');
+            // Clear previous results
+            resultsContainer.innerHTML = '';
+
+            results.forEach(function(result, index) {
+                var resultDiv = document.createElement('div');
+                resultDiv.className = 'video-result';
+
+                var iframe = document.createElement('iframe');
+                iframe.src = `https://www.youtube.com/embed/${result.videoId}?enablejsapi=1`;
+                iframe.allowfullscreen = true;
+
+                var titleDiv = document.createElement('div');
+                titleDiv.className = 'video-title';
+                titleDiv.textContent = result.title;
+
+                resultDiv.appendChild(iframe);
+                resultDiv.appendChild(titleDiv);
+
+                // Add a click event to move the clicked video to the top center
+                resultDiv.addEventListener('click', function() {
+                    stopCurrentVideo();
+                    // Move the clicked video to the top center
+                    resultsContainer.insertBefore(resultDiv, resultsContainer.firstChild);
+
+                    // Adjust the display order of other videos
+                    for (let i = index - 1; i >= 0; i--) {
+                        resultsContainer.insertBefore(resultsContainer.children[i], resultsContainer.firstChild);
+                    }
+
+                    for (let i = index + 1; i < resultsContainer.children.length; i++) {
+                        resultsContainer.insertBefore(resultsContainer.children[i], null);
+                    }
+
+                    currentPlayingVideo = iframe;
+
+                    // Display related videos
+                    displayRelatedVideos(result.videoId);
+                });
+
+                resultsContainer.appendChild(resultDiv);
+            });
+        }
+
+        function displayRelatedVideos(videoId) {
+            // Make a request to get related videos
+            var relatedApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId=${videoId}&type=video&key=${API_KEY}&maxResults=6`;
+
+            fetch(relatedApiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    var relatedVideos = data.items.map(item => ({
+                        title: item.snippet.title,
+                        videoId: item.id.videoId
+                    }));
+
+                    // Display related videos
+                    displayResults(relatedVideos);
+                })
+                .catch(error => {
+                    console.error('Error fetching related videos:', error);
+                });
+        }
+
+        function stopCurrentVideo() {
+            if (currentPlayingVideo) {
+                // Stop the currently playing video
+                currentPlayingVideo.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            }
+        }
+    </script>
+</body>
+</html>
